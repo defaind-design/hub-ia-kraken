@@ -1,7 +1,7 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { getVertexAI, getModelName } from './config/vertex';
+import { getGenAI, getModelName } from './config/vertex';
 import { OnTickRequest, OnTickResponse, SessionDocument } from './types/session';
 import * as logger from 'firebase-functions/logger';
 
@@ -105,24 +105,24 @@ export const onTick = onRequest(
       // Preparar prompt com contexto do blackboard
       const contextualPrompt = buildContextualPrompt(prompt, blackboardContext);
 
-      // Inicializar Vertex AI
-      const vertexAI = getVertexAI();
-      const model = vertexAI.getGenerativeModel({
-        model: getModelName(),
-      });
+      // Inicializar Google AI Studio (Gemini API via API Key)
+      const genAI = getGenAI();
+      const model = genAI.getGenerativeModel({ model: getModelName() });
 
       // Configurar streaming
       let accumulatedText = '';
       let chunkCount = 0;
 
       // Iniciar streaming
-      const stream = await model.generateContentStream({
+      const result = await model.generateContentStream({
         contents: [{ role: 'user', parts: [{ text: contextualPrompt }] }],
       });
 
       // Processar chunks do stream
-      for await (const chunk of stream.stream) {
-        const chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      for await (const chunk of result.stream) {
+        const chunkText = typeof (chunk as any).text === 'function'
+          ? (chunk as any).text()
+          : chunk.candidates?.[0]?.content?.parts?.[0]?.text || '';
         
         if (chunkText) {
           accumulatedText += chunkText;

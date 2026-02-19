@@ -1,42 +1,29 @@
-import { VertexAI } from '@google-cloud/vertexai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 /**
- * Configuração do Vertex AI para Gemini
- * Otimizado para Spark plan - usa Application Default Credentials
+ * Configuração do Google AI Studio (Gemini API)
+ * Usa GEMINI_API_KEY (configurada como Secret no Cloud Functions)
  */
-let vertexAI: VertexAI | null = null;
+let genAI: GoogleGenerativeAI | null = null;
 
-export function getVertexAI(): VertexAI {
-  if (vertexAI) {
-    return vertexAI;
+export function getGenAI(): GoogleGenerativeAI {
+  if (genAI) {
+    return genAI;
   }
 
-  const projectId = process.env.GCP_PROJECT_ID || process.env.GCLOUD_PROJECT;
-  const location = process.env.VERTEX_AI_REGION || 'us-central1';
+  const apiKey = process.env.GEMINI_API_KEY;
 
-  if (!projectId) {
-    throw new Error('GCP_PROJECT_ID or GCLOUD_PROJECT environment variable is required');
+  if (!apiKey) {
+    throw new Error(
+      'GEMINI_API_KEY environment variable is required. Configure it as a Secret in Cloud Functions.'
+    );
   }
 
-  vertexAI = new VertexAI({
-    project: projectId,
-    location: location,
-  });
-
-  return vertexAI;
+  genAI = new GoogleGenerativeAI(apiKey);
+  return genAI;
 }
 
 export function getModelName(): string {
   return 'gemini-1.5-flash';
 }
 
-export function getVertexAIConfig() {
-  const projectId = process.env.GCP_PROJECT_ID || process.env.GCLOUD_PROJECT;
-  const location = process.env.VERTEX_AI_REGION || 'us-central1';
-  
-  return {
-    projectId,
-    location,
-    model: getModelName(),
-  };
-}
