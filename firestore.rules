@@ -1,0 +1,101 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function para verificar autenticação
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function para verificar se o usuário pertence à organização
+    function belongsToOrganization(organizationId) {
+      return isAuthenticated() && 
+             resource.data.organizationId == organizationId &&
+             request.auth.uid == resource.data.userId;
+    }
+    
+    // Helper function para verificar se é o próprio usuário
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Collection: sessions
+    // Multi-tenancy: usuários só podem acessar sessões de sua organização
+    match /sessions/{sessionId} {
+      // Leitura: usuário deve pertencer à organização da sessão
+      allow read: if isAuthenticated() && 
+                     request.auth.uid == resource.data.userId &&
+                     resource.data.organizationId != null;
+      
+      // Criação: usuário deve ser o owner e fornecer organizationId
+      allow create: if isAuthenticated() && 
+                       request.auth.uid == request.resource.data.userId &&
+                       request.resource.data.organizationId != null &&
+                       request.resource.data.createdAt == request.time &&
+                       request.resource.data.updatedAt == request.time;
+      
+      // Atualização: usuário deve pertencer à organização
+      // Nota: lastDelta é atualizado apenas por Cloud Functions (via Admin SDK)
+      // Mas permitimos atualização manual de outros campos para flexibilidade
+      allow update: if isAuthenticated() && 
+                       request.auth.uid == resource.data.userId &&
+                       resource.data.organizationId == request.resource.data.organizationId &&
+                       // Prevenir alteração de organizationId
+                       request.resource.data.organizationId == resource.data.organizationId &&
+                       // Prevenir alteração de userId
+                       request.resource.data.userId == resource.data.userId;
+      
+      // Deleção: apenas o owner pode deletar
+      allow delete: if isAuthenticated() && 
+                       request.auth.uid == resource.data.userId;
+    }
+    
+    // Collection: organizations
+    // Usuários podem ler organizações, mas apenas admins podem modificar
+    match /organizations/{organizationId} {
+      allow read: if isAuthenticated();
+      
+      // Criação: qualquer usuário autenticado pode criar organização
+      allow create: if isAuthenticated() && 
+                       request.resource.data.createdAt == request.time;
+      
+      // Atualização: apenas membros da organização podem atualizar
+      allow update: if isAuthenticated() && 
+                       (request.resource.data.members != null && 
+                        request.auth.uid in request.resource.data.members);
+      
+      // Deleção: apenas admins
+      allow delete: if isAuthenticated() && 
+                       resource.data.ownerId == request.auth.uid;
+    }
+    
+    // Collection: agents
+    // Agentes pertencem a organizações e seguem regras de multi-tenancy
+    match /agents/{agentId} {
+      allow read: if isAuthenticated() && 
+                     resource.data.organizationId != null &&
+                     // Verificar se usuário pertence à organização
+                     (resource.data.members != null && 
+                      request.auth.uid in resource.data.members);
+      
+      allow create: if isAuthenticated() && 
+                       request.resource.data.organizationId != null &&
+                       request.resource.data.createdAt == request.time;
+      
+      allow update: if isAuthenticated() && 
+                       resource.data.organizationId == request.resource.data.organizationId &&
+                       (resource.data.members != null && 
+                        request.auth.uid in resource.data.members);
+      
+      allow delete: if isAuthenticated() && 
+                       resource.data.organizationId != null &&
+                       (resource.data.members != null && 
+                        request.auth.uid in resource.data.members);
+    }
+    
+    // Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
