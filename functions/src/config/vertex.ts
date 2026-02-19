@@ -13,7 +13,6 @@ export function getVertexAI(): VertexAI {
 
   const projectId = process.env.GCP_PROJECT_ID || process.env.GCLOUD_PROJECT;
   const location = process.env.VERTEX_AI_REGION || 'us-central1';
-  const model = 'gemini-1.5-flash';
 
   if (!projectId) {
     throw new Error('GCP_PROJECT_ID or GCLOUD_PROJECT environment variable is required');
