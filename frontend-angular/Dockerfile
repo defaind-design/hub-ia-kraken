@@ -28,8 +28,10 @@ RUN npm cache clean --force
 # Instala Angular CLI globalmente para build
 RUN npm install -g @angular/cli@17
 
-# Copia código fonte
-COPY . .
+# Copia código fonte (exceto node_modules e dist para evitar conflitos)
+COPY angular.json tsconfig.json tsconfig.app.json tsconfig.spec.json ./
+COPY src/ ./src/
+COPY package*.json ./
 
 # Configuração do Angular para produção
 RUN npm run build -- --configuration production
