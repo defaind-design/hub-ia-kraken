@@ -1,6 +1,6 @@
 import { Component, Input, OnInit, OnDestroy, ChangeDetectionStrategy, ElementRef, ViewChild, AfterViewChecked } from '@angular/core';
 import { Observable, Subscription, combineLatest, BehaviorSubject } from 'rxjs';
-import { map, distinctUntilChanged, tap } from 'rxjs/operators';
+import { map, distinctUntilChanged, tap, switchMap } from 'rxjs/operators';
 import { FirebaseService } from '@services/firebase.service';
 import { SessionData, SessionViewerProps } from '@models/session.model';
 import { environment } from '@environments/environment';
@@ -79,22 +79,20 @@ export class SessionViewerComponent implements OnInit, OnDestroy, AfterViewCheck
       )
     );
 
-    // Observable para efeito typewriter
-    this.typewriterText$ = this.sessionData$.pipe(
-      map(sessionData => sessionData?.lastDelta || ''),
-      distinctUntilChanged(),
-      tap(lastDelta => {
-        if (lastDelta) {
-          this.isTyping$.next(true);
-        }
-      }),
-      map(lastDelta => this.firebaseService.createTypewriterStream(lastDelta, this.typewriterSpeed)),
-      // Aplanar o Observable interno
-      map(typewriterStream => typewriterStream),
-      tap({
-        complete: () => this.isTyping$.next(false)
-      })
-    );
+  // Observable para efeito typewriter
+  this.typewriterText$ = this.sessionData$.pipe(
+    map(sessionData => sessionData?.lastDelta || ''),
+    distinctUntilChanged(),
+    tap(lastDelta => {
+      if (lastDelta) {
+        this.isTyping$.next(true);
+      }
+    }),
+    switchMap(lastDelta => this.firebaseService.createTypewriterStream(lastDelta, this.typewriterSpeed)),
+    tap({
+      complete: () => this.isTyping$.next(false)
+    })
+  );
   }
 
   private setupSubscriptions(): void {

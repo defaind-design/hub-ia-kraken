@@ -1,0 +1,196 @@
+# ============================================================================
+# KRAKEN COGNITIVE OS - DOCKER COMPOSE
+# Ambiente completo de desenvolvimento e teste
+# Porta principal: 7000 (Frontend Angular)
+# ============================================================================
+
+version: '3.8'
+
+services:
+  # --------------------------------------------------------------------------
+  # FRONTEND ANGULAR (Kraken Cognitive OS Interface)
+  # --------------------------------------------------------------------------
+  kraken-frontend:
+    build:
+      context: ./frontend-angular
+      dockerfile: Dockerfile
+      target: production  # Use 'development' para live-reload
+    container_name: kraken-frontend
+    ports:
+      - "7000:80"  # Mapeia porta 7000 do host para 80 do container
+    environment:
+      - NODE_ENV=production
+      - API_BASE_URL=http://firebase-emulator:8080
+      - FIREBASE_EMULATOR=true
+      - FIRESTORE_EMULATOR_HOST=firebase-emulator:8080
+      - FIREBASE_AUTH_EMULATOR_HOST=firebase-emulator:9099
+    # volumes: removido para evitar erro no podman-compose
+    # Para desenvolvimento com live-reload, descomente:
+    # - ./frontend-angular/src:/app/src
+    # - ./frontend-angular/nginx.conf:/etc/nginx/conf.d/default.conf
+    # Volume de logs removido para evitar problemas de permissão
+    # - kraken-frontend-logs:/var/log/nginx
+    depends_on:
+      - firebase-emulator
+    networks:
+      - kraken-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # --------------------------------------------------------------------------
+  # FIREBASE EMULATOR SUITE (Backend completo)
+  # --------------------------------------------------------------------------
+  firebase-emulator:
+    build:
+      context: .
+      dockerfile: ./docker-firebase-emulator/Dockerfile
+    container_name: firebase-emulator
+    ports:
+      - "8080:8080"   # Firestore Emulator
+      - "5001:5001"   # Functions Emulator
+      - "9099:9099"   # Auth Emulator
+      - "9199:9199"   # Storage Emulator
+      - "4000:4000"   # Firebase Emulator UI
+      - "9000:9000"   # Database Emulator
+      - "5002:5000"   # Hosting Emulator (porta alternativa)
+      - "8085:8085"   # Pub/Sub Emulator
+    environment:
+      - FIRESTORE_EMULATOR_HOST=0.0.0.0:8080
+      - FIREBASE_AUTH_EMULATOR_HOST=0.0.0.0:9099
+      - FIREBASE_STORAGE_EMULATOR_HOST=0.0.0.0:9199
+      - FIREBASE_DATABASE_EMULATOR_HOST=0.0.0.0:9000
+      - HOSTING_EMULATOR_HOST=0.0.0.0:5000
+      - PUBSUB_EMULATOR_HOST=0.0.0.0:8085
+      - GCLOUD_PROJECT=kraken-dev
+      - FIREBASE_CONFIG={"projectId":"kraken-dev","storageBucket":"kraken-dev.appspot.com"}
+    volumes:
+      - firebase-emulator-data:/data/firebase-emulator
+      - ./functions:/app/functions:ro
+      - ./firebase.json:/app/firebase.json:ro
+      - ./firestore.rules:/app/firestore.rules:ro
+      - ./firestore.indexes.json:/app/firestore.indexes.json:ro
+    networks:
+      - kraken-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    command: ["/app/start-emulator.sh"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # --------------------------------------------------------------------------
+  # NGINX REVERSE PROXY (Opcional - para produção)
+  # --------------------------------------------------------------------------
+  # nginx-proxy:
+  #   image: nginx:alpine
+  #   container_name: kraken-nginx-proxy
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx-proxy.conf:/etc/nginx/nginx.conf:ro
+  #     - ./ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - kraken-frontend
+  #   networks:
+  #     - kraken-network
+  #   restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # DATABASE ADMIN (Opcional - Adminer para Firestore)
+  # --------------------------------------------------------------------------
+  # adminer:
+  #   image: adminer:latest
+  #   container_name: kraken-adminer
+  #   ports:
+  #     - "8081:8080"
+  #   environment:
+  #     - ADMINER_DEFAULT_SERVER=firebase-emulator
+  #   networks:
+  #     - kraken-network
+  #   restart: unless-stopped
+
+# --------------------------------------------------------------------------
+# VOLUMES PERSISTENTES
+# --------------------------------------------------------------------------
+volumes:
+  firebase-emulator-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ./docker-data/firebase-emulator
+      o: bind
+  kraken-frontend-logs:
+    driver: local
+    driver_opts:
+      type: none
+      device: ./docker-data/frontend-logs
+      o: bind
+
+# --------------------------------------------------------------------------
+# REDES DOCKER
+# --------------------------------------------------------------------------
+networks:
+  kraken-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+
+# --------------------------------------------------------------------------
+# CONFIGURAÇÕES ADICIONAIS
+# --------------------------------------------------------------------------
+x-kraken-defaults: &kraken-defaults
+  stdin_open: true
+  tty: true
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+# --------------------------------------------------------------------------
+# COMANDOS ÚTEIS:
+# --------------------------------------------------------------------------
+# Build e inicialização:
+#   docker-compose build          # Build de todas as imagens
+#   docker-compose up -d          # Inicia todos os serviços em background
+#   docker-compose logs -f        # Mostra logs em tempo real
+#   docker-compose down           # Para e remove todos os containers
+#
+# Serviços individuais:
+#   docker-compose up kraken-frontend -d     # Inicia apenas frontend
+#   docker-compose up firebase-emulator -d   # Inicia apenas emulador
+#
+# Acesso:
+#   Frontend:        http://localhost:7000
+#   Firebase UI:     http://localhost:4000
+#   Firestore:       http://localhost:8080
+#   Functions:       http://localhost:5001
+#   Auth:            http://localhost:9099
+#
+# Shell nos containers:
+#   docker-compose exec kraken-frontend sh
+#   docker-compose exec firebase-emulator sh
+#
+# Limpeza:
+#   docker-compose down -v        # Remove containers e volumes
+#   docker system prune -a        # Limpa tudo (cuidado!)

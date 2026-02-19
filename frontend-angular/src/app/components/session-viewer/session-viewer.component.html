@@ -43,8 +43,8 @@
       
       <div class="flex items-center gap-3">
         <span class="text-sm font-medium text-gray-600">Status:</span>
-        <span class="px-4 py-2 rounded-full text-sm font-semibold border" [ngClass]="getStatusColorClass(sessionData?.status || '')">
-          {{ (sessionData?.status || 'UNKNOWN') | uppercase }}
+        <span class="px-4 py-2 rounded-full text-sm font-semibold border" [ngClass]="getStatusColorClass((sessionData$ | async)?.status || '')">
+          {{ ((sessionData$ | async)?.status || 'UNKNOWN') | uppercase }}
         </span>
         <div *ngIf="isTyping$ | async" class="flex items-center gap-2 animate-pulse">
           <div class="h-2 w-2 rounded-full bg-green-500"></div>
@@ -61,8 +61,8 @@
         <span class="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></span>
         LIVE STREAMING (LAST DELTA)
       </h3>
-      <span *ngIf="sessionData?.lastDeltaTimestamp" class="text-sm text-gray-400">
-        {{ formatTimestamp(sessionData.lastDeltaTimestamp) }}
+      <span *ngIf="(sessionData$ | async)?.lastDeltaTimestamp" class="text-sm text-gray-400">
+        {{ formatTimestamp((sessionData$ | async)?.lastDeltaTimestamp) }}
       </span>
     </div>
     
@@ -76,7 +76,7 @@
         <span *ngIf="isTyping$ | async" class="inline-block h-5 w-[2px] bg-blue-400 ml-1 animate-pulse align-middle"></span>
       </div>
       
-      <div *ngIf="!sessionData?.lastDelta && !(isTyping$ | async)" class="text-gray-500 italic">
+      <div *ngIf="!(sessionData$ | async)?.lastDelta && !(isTyping$ | async)" class="text-gray-500 italic">
         Waiting for streaming response from Kraken...
       </div>
     </div>
@@ -87,7 +87,7 @@
           <span class="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"></span>
           Kraken is thinking...
         </span>
-        <span *ngIf="sessionData?.lastDelta && !(isTyping$ | async)" class="text-green-400">✓ Stream complete</span>
+        <span *ngIf="(sessionData$ | async)?.lastDelta && !(isTyping$ | async)" class="text-green-400">✓ Stream complete</span>
       </div>
       <div class="text-gray-500">
         Typewriter speed: {{ typewriterSpeed }}ms/char
@@ -136,13 +136,13 @@
   </div>
 
   <!-- Blackboard Context (Collapsible) -->
-  <div *ngIf="sessionData?.blackboard && Object.keys(sessionData.blackboard).length > 0" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+  <div *ngIf="(sessionData$ | async)?.blackboard" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
     <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
       BLACKBOARD CONTEXT
     </h3>
     <div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 max-h-[400px] overflow-y-auto">
       <pre class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-        {{ sessionData.blackboard | json }}
+        {{ (sessionData$ | async)?.blackboard | json }}
       </pre>
     </div>
   </div>
